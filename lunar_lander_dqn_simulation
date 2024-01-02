@@ -1,0 +1,74 @@
+import gym
+import time
+import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.optimizers.legacy import Adam
+from rl.agents.dqn import DQNAgent
+from rl.policy import BoltzmannQPolicy
+from rl.memory import SequentialMemory
+import os
+
+import matplotlib.pyplot as plt
+
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
+# Training
+
+env = gym.make("LunarLander-v2", render_mode="human")
+
+states = env.observation_space.shape[0]
+actions = env.action_space.n
+
+print(states, actions)
+
+
+# Create a new model for simulation
+simulation_model = Sequential()
+simulation_model.add(Flatten(input_shape=(1, states)))
+simulation_model.add(Dense(24, activation="relu"))
+simulation_model.add(Dense(24, activation="relu"))
+simulation_model.add(Dense(actions, activation="linear"))
+
+# Load the trained weights into the simulation model
+simulation_model.load_weights('trained_weights.h5')
+
+# Create a new agent for simulation
+simulation_agent = DQNAgent(
+    model=simulation_model,
+    memory=SequentialMemory(limit=50000, window_length=1),
+    policy=BoltzmannQPolicy(),
+    nb_actions=actions,
+    nb_steps_warmup=10,
+    target_model_update=0.01
+)
+
+# Episodes with rendering
+episodes = 10
+all_scores = []
+
+for episode in range(1, episodes + 1):
+    state = env.reset()  # Reset the environment
+    done = False
+    score = 0
+
+    while not done:
+        action = simulation_agent.forward(state)  # Use the agent's policy to get the action
+        next_state, reward, done, _ = env.step(action)
+        score += reward
+        # env.render()
+        state = next_state
+
+    all_scores.append(score)
+    print(f"Episode {episode}, Score: {score}")
+    time.sleep(1)
+
+env.close()
+
+# Visualize the performance (plot rewards over episodes)
+plt.plot(range(1, episodes + 1), all_scores, marker='o')
+plt.xlabel('Episode')
+plt.ylabel('Total Reward')
+plt.title('Performance Evaluation')
+plt.show()
